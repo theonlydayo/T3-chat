@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(request: NextRequest) {
+type OpenRouterModel = {
+  id: string;
+  name: string;
+  description?: string;
+  context_length?: number;
+  architecture?: Record<string, unknown>;
+  pricing?: {
+    prompt?: string;
+    completion?: string;
+    [key: string]: unknown;
+  };
+  top_provider?: Record<string, unknown>;
+};
+
+type OpenRouterResponse = {
+  data: OpenRouterModel[];
+};
+
+export async function GET(_request: NextRequest) {
   try {
     const response = await fetch("https://openrouter.ai/api/v1/models", {
       method: "GET",
@@ -12,21 +30,21 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { message: "Openrouter api error" },
+        { message: "OpenRouter API error" },
         { status: 500 },
       );
     }
 
-    const data = await response.json();
+    const data: OpenRouterResponse = await response.json();
 
-    const freeModels = data.data.filter((model) => {
+    const freeModels = data.data.filter((model: OpenRouterModel) => {
       const promptPrice = parseFloat(model.pricing?.prompt || "0");
       const completionPrice = parseFloat(model.pricing?.completion || "0");
 
       return promptPrice === 0 && completionPrice === 0;
     });
 
-    const formattedModels = freeModels.map((model) => ({
+    const formattedModels = freeModels.map((model: OpenRouterModel) => ({
       id: model.id,
       name: model.name,
       description: model.description,
@@ -39,13 +57,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       models: formattedModels,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error fetching free models:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: (error as Error).message || "Failed to fetch free models",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch free models",
       },
       { status: 500 },
     );

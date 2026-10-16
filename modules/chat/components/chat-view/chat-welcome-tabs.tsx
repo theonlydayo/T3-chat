@@ -1,11 +1,28 @@
 "use client";
-import React, { useState } from 'react';
-import { Sparkles, Newspaper, Code, GraduationCap} from "lucide-react";
+
+import React, { useState } from "react";
+import type { ReactNode } from "react";
+import {
+  Sparkles,
+  Newspaper,
+  Code,
+  GraduationCap,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
+type ChatTab = {
+  tabName: string;
+  icon: ReactNode;
+  messages: string[];
+};
 
-const CHAT_TAB_MESSAGE = [
+type ChatWelcomeTabsProps = {
+  userName?: string;
+  onMessageSelect: (message: string) => void;
+};
+
+const CHAT_TAB_MESSAGE: ChatTab[] = [
   {
     tabName: "Create",
     icon: <Sparkles className="h-4 w-4" />,
@@ -48,14 +65,19 @@ const CHAT_TAB_MESSAGE = [
   },
 ];
 
+const ChatWelcomeTabs = ({
+  userName = "John Doe",
+  onMessageSelect,
+}: ChatWelcomeTabsProps) => {
+  const [activeTab, setActiveTab] = useState(0);
 
-const ChatWelcomeTabs = ({userName="John Doe" , onMessageSelect} ) => {
-    const [activeTab , setActiveTab] = useState(0)
+  const firstName = userName.split(" ")[0] || userName;
+
   return (
-   <div className="flex flex-col items-center justify-center px-4">
+    <div className="flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-3xl space-y-8">
         <h1 className="text-4xl font-semibold">
-          How can I help you, {userName.slice(0, userName.indexOf(" ")) || userName}?
+          How can I help you, {firstName}?
         </h1>
 
         <div className="flex flex-wrap gap-2 w-full">
@@ -64,7 +86,7 @@ const ChatWelcomeTabs = ({userName="John Doe" , onMessageSelect} ) => {
               key={tab.tabName}
               variant={activeTab === index ? "default" : "secondary"}
               onClick={() => setActiveTab(index)}
-              className="w-[110px] justify-start"
+              className="w-27.5 justify-start"
             >
               {tab.icon}
               <span className="ml-2">{tab.tabName}</span>
@@ -72,15 +94,17 @@ const ChatWelcomeTabs = ({userName="John Doe" , onMessageSelect} ) => {
           ))}
         </div>
 
-        <div className="space-y-3 w-full min-h-[240px]">
+        <div className="space-y-3 w-full min-h-60">
           {CHAT_TAB_MESSAGE[activeTab].messages.map((message, index) => (
             <div key={index}>
               <button
+                type="button"
                 onClick={() => onMessageSelect(message)}
                 className="w-full text-left text-sm text-muted-foreground hover:text-primary transition-colors duration-300 ease-in-out py-2"
               >
                 {message}
               </button>
+
               {index < CHAT_TAB_MESSAGE[activeTab].messages.length - 1 && (
                 <Separator />
               )}
@@ -89,7 +113,7 @@ const ChatWelcomeTabs = ({userName="John Doe" , onMessageSelect} ) => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default ChatWelcomeTabs
+export default ChatWelcomeTabs;

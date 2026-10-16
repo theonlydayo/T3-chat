@@ -1,8 +1,12 @@
-import { convertToModelMessages, streamText , createIdGenerator , type UIMessage } from "ai";
+import {
+  convertToModelMessages,
+  streamText,
+  createIdGenerator,
+  type UIMessage,
+} from "ai";
 import { CHAT_SYSTEM_PROMPT } from "@/lib/prompt";
 import { prisma } from "@/lib/db";
 import { MessageRole } from "@/lib/generated/prisma/enums";
-
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { NextRequest } from "next/server";
 
@@ -10,33 +14,49 @@ const openRouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
 });
 
+type DBMessage = {
+  id: string;
+  messageRole: MessageRole;
+  content: string;
+  createdAt: Date;
+};
+
+type MessagePart = {
+  type: string;
+  text?: string;
+  [key: string]: unknown;
+};
+
 /**
  * Convert DB message to UI format for AI SDK
  */
-function dbMessageToUI(msg) {
+function dbMessageToUI(msg: DBMessage): UIMessage | null {
   try {
-    const parts = JSON.parse(msg.content);
+    const parts: MessagePart[] = JSON.parse(msg.content);
     const textParts = parts.filter((p) => p.type === "text");
 
     if (textParts.length === 0) return null;
 
     return {
       id: msg.id,
-      role: msg.messageRole.toLowerCase(),
-      parts: textParts,
+      role: msg.messageRole.toLowerCase() as "user" | "assistant",
+      parts: textParts as UIMessage["parts"],
       createdAt: msg.createdAt,
-    };
+    } as UIMessage;
   } catch {
     return {
       id: msg.id,
-      role: msg.messageRole.toLowerCase(),
+      role: msg.messageRole.toLowerCase() as "user" | "assistant",
       parts: [{ type: "text", text: msg.content }],
       createdAt: msg.createdAt,
-    };
+    } as UIMessage;
   }
 }
 
-const generateMessageId = createIdGenerator({prefix:"msg" , size:16})
+const generateMessageId = createIdGenerator({
+  prefix: "msg",
+  size: 16,
+});
 
 /**
  * Convert message parts to JSON string for DB storage
@@ -45,10 +65,11 @@ function partsToJSON(message: { parts?: unknown; content?: string }) {
   if (Array.isArray(message.parts)) {
     return JSON.stringify(message.parts);
   }
-  return JSON.stringify([{ type: "text", text: message.content ?? "" }]);
+
+  return JSON.stringify([
+    { type: "text", text: message.content ?? "" },
+  ]);
 }
-
-
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,9 +78,12 @@ export async function POST(req: NextRequest) {
       messages,
       model,
       skipUserMessage,
+    }: {
+      chatId: string;
+      messages: UIMessage[];
+      model: string;
+      skipUserMessage?: boolean;
     } = await req.json();
-
-  
 
     const result = streamText({
       model: openRouter.chat(model),
@@ -75,8 +99,8 @@ export async function POST(req: NextRequest) {
       generateMessageId,
       onFinish: async ({ responseMessage }) => {
         try {
-          const messageToSave:Array<{
-                 id?: string;
+          const messageToSave: Array<{
+            id?: string;
             chatId: string;
             content: string;
             messageRole: MessageRole;
@@ -85,12 +109,13 @@ export async function POST(req: NextRequest) {
           }> = [];
 
           if (!skipUserMessage) {
-              const lastUserMsg = [...messages]
+            const lastUserMsg = [...messages]
               .reverse()
               .find((m) => m.role === "user");
+
             if (lastUserMsg) {
               messageToSave.push({
-                id:lastUserMsg.id,
+                id: lastUserMsg.id,
                 chatId,
                 content: partsToJSON(lastUserMsg),
                 messageRole: MessageRole.USER,
@@ -102,7 +127,7 @@ export async function POST(req: NextRequest) {
 
           if (responseMessage?.parts?.length > 0) {
             messageToSave.push({
-              id:responseMessage.id,
+              id: responseMessage.id,
               chatId,
               content: partsToJSON(responseMessage),
               messageRole: MessageRole.ASSISTANT,
@@ -111,21 +136,28 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          if(messageToSave.length > 0){
-            await prisma.message.createMany({data:messageToSave , skipDuplicates:true})
+          if (messageToSave.length > 0) {
+            await prisma.message.createMany({
+              data: messageToSave,
+              skipDuplicates: true,
+            });
           }
         } catch (error) {
-            console.error("Error saving messages" , error)
+          console.error("Error saving messages", error);
         }
       },
     });
   } catch (error) {
-     console.error("Chat API error:", error);
+    console.error("Chat API error:", error);
+
     return Response.json(
-      { error: (error as Error).message || "Internal server error" },
-      { status: 500 }
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Internal server error",
+      },
+      { status: 500 },
     );
   }
 }
-
-

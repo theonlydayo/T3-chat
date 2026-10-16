@@ -1,6 +1,14 @@
 "use client";
+
 import { useState } from "react";
-import { Check, ChevronDown, Info, Search, Sparkles } from "lucide-react";
+import type { ReactNode, MouseEvent } from "react";
+import {
+  Check,
+  ChevronDown,
+  Info,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,50 +28,91 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 
+type ModelPricing = {
+  prompt: string;
+  completion: string;
+  request?: string;
+  image?: string;
+  [key: string]: string | undefined;
+};
+
+type ModelArchitecture = {
+  modality: string;
+  tokenizer: string;
+  input_modalities: string[];
+  output_modalities: string[];
+};
+
+type Model = {
+  id: string;
+  name: string;
+  description: string;
+  context_length: number;
+  architecture: ModelArchitecture;
+  pricing: ModelPricing;
+  top_provider: {
+    max_completion_tokens: number;
+    is_moderated: boolean;
+  };
+};
+
+type ModelSelectorProps = {
+  models?: Model[];
+  selectedModelId?: string;
+  onModelSelect: (modelId: string) => void;
+  className?: string;
+};
+
 export function ModelSelector({
-  models,
+  models = [],
   selectedModelId,
   onModelSelect,
   className,
-}) {
-    const [open , setOpen] = useState(false);
-    const [detailsOpen , setDetailsOpen] = useState(false);
-    const [selectedForDetails , setSelectedForDetails] = useState(null);
-    const [searchQuery , setSearchQuery] = useState("");
+}: ModelSelectorProps) {
+  const [open, setOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedForDetails, setSelectedForDetails] =
+    useState<Model | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-      const selectedModel = models.find((m) => m.id === selectedModelId);
+  const selectedModel = models.find(
+    (model) => model.id === selectedModelId,
+  );
 
-  const formatContextLength = (length) => {
-    if (length >= 1000000) return `${(length / 1000000).toFixed(1)}M`;
-    if (length >= 1000) return `${(length / 1000).toFixed(0)}K`;
+  const formatContextLength = (length: number): string => {
+    if (length >= 1_000_000) return `${(length / 1_000_000).toFixed(1)}M`;
+    if (length >= 1_000) return `${(length / 1_000).toFixed(0)}K`;
     return length.toString();
   };
 
-    const isFreeModel = (model) => {
+  const isFreeModel = (model: Model): boolean => {
     return (
       model.pricing.prompt === "0" &&
       model.pricing.completion === "0" &&
-      model.pricing.request === "0"
+      (model.pricing.request === undefined ||
+        model.pricing.request === "0")
     );
   };
 
-  
-  const openModelDetails = (model, e) => {
-    e.stopPropagation();
+  const openModelDetails = (
+    model: Model,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => {
+    event.stopPropagation();
     setSelectedForDetails(model);
     setDetailsOpen(true);
   };
 
-      const filteredModels = models.filter((model) => {
-    const query = searchQuery.toLowerCase()
+  const query = searchQuery.toLowerCase();
+
+  const filteredModels = models.filter((model) => {
     return (
       model.name.toLowerCase().includes(query) ||
       model.description.toLowerCase().includes(query) ||
       model.id.toLowerCase().includes(query) ||
       model.architecture.modality.toLowerCase().includes(query)
-    )
-  })
-
+    );
+  });
 
   return (
     <>
@@ -75,7 +124,7 @@ export function ModelSelector({
             aria-expanded={open}
             className={cn(
               "h-8 justify-between gap-2 px-2 text-xs hover:bg-accent",
-              className
+              className,
             )}
           >
             <div className="flex items-center gap-1.5 min-w-0">
@@ -87,23 +136,26 @@ export function ModelSelector({
             <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
+
         <PopoverContent className="w-3xl p-0" align="start">
-           <div className="p-3 border-b">
+          <div className="p-3 border-b">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search models..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 className="h-9 pl-9"
               />
             </div>
           </div>
-          <ScrollArea className="h-[400px]">
+
+          <ScrollArea className="h-100">
             <div className="p-2">
               <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
                 Available Models ({filteredModels.length})
               </div>
+
               {filteredModels.length === 0 ? (
                 <div className="px-2 py-8 text-center text-sm text-muted-foreground">
                   No models found matching "{searchQuery}"
@@ -117,35 +169,58 @@ export function ModelSelector({
                       selectedModelId === model.id && "bg-accent",
                     )}
                     onClick={() => {
-                      onModelSelect(model.id)
-                      setOpen(false)
-                      setSearchQuery("")
+                      onModelSelect(model.id);
+                      setOpen(false);
+                      setSearchQuery("");
                     }}
                   >
                     <div className="flex h-5 items-center">
-                      <Check className={cn("h-4 w-4", selectedModelId === model.id ? "opacity-100" : "opacity-0")} />
+                      <Check
+                        className={cn(
+                          "h-4 w-4",
+                          selectedModelId === model.id
+                            ? "opacity-100"
+                            : "opacity-0",
+                        )}
+                      />
                     </div>
+
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm leading-none truncate">{model.name}</span>
+                        <span className="font-medium text-sm leading-none truncate">
+                          {model.name}
+                        </span>
+
                         {isFreeModel(model) && (
-                          <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                          <Badge
+                            variant="secondary"
+                            className="h-4 px-1 text-[10px]"
+                          >
                             FREE
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{model.description}</p>
+
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {model.description}
+                      </p>
+
                       <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                        <span>Context: {formatContextLength(model.context_length)}</span>
+                        <span>
+                          Context: {formatContextLength(model.context_length)}
+                        </span>
                         <span>•</span>
-                        <span className="capitalize">{model.architecture.modality.replace("->", " → ")}</span>
+                        <span className="capitalize">
+                          {model.architecture.modality.replace("->", " → ")}
+                        </span>
                       </div>
                     </div>
+
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 w-6 p-0 shrink-0"
-                      onClick={(e) => openModelDetails(model, e)}
+                      onClick={(event) => openModelDetails(model, event)}
                     >
                       <Info className="h-3.5 w-3.5" />
                       <span className="sr-only">View details</span>
@@ -158,7 +233,6 @@ export function ModelSelector({
         </PopoverContent>
       </Popover>
 
-
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="max-w-2xl h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader className="shrink-0">
@@ -166,136 +240,207 @@ export function ModelSelector({
               <Sparkles className="h-5 w-5" />
               {selectedForDetails?.name}
             </DialogTitle>
-            <DialogDescription>Detailed information about this AI model</DialogDescription>
+            <DialogDescription>
+              Detailed information about this AI model
+            </DialogDescription>
           </DialogHeader>
+
           <div className="flex-1 overflow-hidden">
-   <ScrollArea className="h-full pr-4 ">
-            {selectedForDetails && (
-              <div className="space-y-6">
-                {/* Description */}
-                <div>
-                  <h3 className="text-sm font-semibold mb-2">Description</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{selectedForDetails.description}</p>
-                </div>
-
-                <Separator />
-
-                {/* Context & Capabilities */}
-                <div>
-                  <h3 className="text-sm font-semibold mb-3">Context & Capabilities</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Context Length</p>
-                      <p className="text-sm font-medium">
-                        {formatContextLength(selectedForDetails.context_length)} tokens
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Max Completion Tokens</p>
-                      <p className="text-sm font-medium">
-                        {formatContextLength(selectedForDetails.top_provider.max_completion_tokens)} tokens
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Modality</p>
-                      <p className="text-sm font-medium capitalize">
-                        {selectedForDetails.architecture.modality.replace("->", " → ")}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Tokenizer</p>
-                      <p className="text-sm font-medium">{selectedForDetails.architecture.tokenizer}</p>
-                    </div>
+            <ScrollArea className="h-full pr-4">
+              {selectedForDetails && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-sm font-semibold mb-2">
+                      Description
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {selectedForDetails.description}
+                    </p>
                   </div>
-                </div>
 
-                <Separator />
+                  <Separator />
 
-                {/* Input/Output Modalities */}
-                <div>
-                  <h3 className="text-sm font-semibold mb-3">Supported Modalities</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">Input Modalities</p>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedForDetails.architecture.input_modalities.map((modality) => (
-                          <Badge key={modality} variant="outline" className="text-xs">
-                            {modality}
-                          </Badge>
-                        ))}
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">
+                      Context & Capabilities
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          Context Length
+                        </p>
+                        <p className="text-sm font-medium">
+                          {formatContextLength(
+                            selectedForDetails.context_length,
+                          )}{" "}
+                          tokens
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          Max Completion Tokens
+                        </p>
+                        <p className="text-sm font-medium">
+                          {formatContextLength(
+                            selectedForDetails.top_provider
+                              .max_completion_tokens,
+                          )}{" "}
+                          tokens
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          Modality
+                        </p>
+                        <p className="text-sm font-medium capitalize">
+                          {selectedForDetails.architecture.modality.replace(
+                            "->",
+                            " → ",
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          Tokenizer
+                        </p>
+                        <p className="text-sm font-medium">
+                          {selectedForDetails.architecture.tokenizer}
+                        </p>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">Output Modalities</p>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedForDetails.architecture.output_modalities.map((modality) => (
-                          <Badge key={modality} variant="outline" className="text-xs">
-                            {modality}
-                          </Badge>
-                        ))}
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">
+                      Supported Modalities
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Input Modalities
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedForDetails.architecture.input_modalities.map(
+                            (modality) => (
+                              <Badge
+                                key={modality}
+                                variant="outline"
+                                className="text-xs"
+                              >
+                                {modality}
+                              </Badge>
+                            ),
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Output Modalities
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedForDetails.architecture.output_modalities.map(
+                            (modality) => (
+                              <Badge
+                                key={modality}
+                                variant="outline"
+                                className="text-xs"
+                              >
+                                {modality}
+                              </Badge>
+                            ),
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <Separator />
+                  <Separator />
 
-                {/* Pricing */}
-                <div>
-                  <h3 className="text-sm font-semibold mb-3">Pricing</h3>
-                  {isFreeModel(selectedForDetails) ? (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                      <Badge variant="secondary" className="bg-green-500/20">
-                        FREE
-                      </Badge>
-                      <p className="text-sm text-muted-foreground">This model is completely free to use</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      {Object.entries(selectedForDetails.pricing).map(([key, value]) => {
-                        if (value === "0") return null
-                        return (
-                          <div key={key} className="space-y-1">
-                            <p className="text-xs text-muted-foreground capitalize">{key.replace("_", " ")}</p>
-                            <p className="text-sm font-medium">${value}</p>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">Pricing</h3>
 
-                <Separator />
+                    {isFreeModel(selectedForDetails) ? (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                        <Badge
+                          variant="secondary"
+                          className="bg-green-500/20"
+                        >
+                          FREE
+                        </Badge>
+                        <p className="text-sm text-muted-foreground">
+                          This model is completely free to use
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        {Object.entries(selectedForDetails.pricing).map(
+                          ([key, value]) => {
+                            if (value === "0" || value === undefined) {
+                              return null;
+                            }
 
-                {/* Provider Info */}
-                <div>
-                  <h3 className="text-sm font-semibold mb-3">Provider Information</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Content Moderation</span>
-                      <Badge variant={selectedForDetails.top_provider.is_moderated ? "default" : "secondary"}>
-                        {selectedForDetails.top_provider.is_moderated ? "Enabled" : "Disabled"}
-                      </Badge>
+                            return (
+                              <div key={key} className="space-y-1">
+                                <p className="text-xs text-muted-foreground capitalize">
+                                  {key.replace("_", " ")}
+                                </p>
+                                <p className="text-sm font-medium">
+                                  ${value}
+                                </p>
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">
+                      Provider Information
+                    </h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">
+                          Content Moderation
+                        </span>
+                        <Badge
+                          variant={
+                            selectedForDetails.top_provider.is_moderated
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {selectedForDetails.top_provider.is_moderated
+                            ? "Enabled"
+                            : "Disabled"}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Model ID */}
-                <div>
-                  <h3 className="text-sm font-semibold mb-2">Model ID</h3>
-                  <code className="text-xs bg-muted px-2 py-1 rounded block break-all">{selectedForDetails.id}</code>
+                  <div>
+                    <h3 className="text-sm font-semibold mb-2">Model ID</h3>
+                    <code className="text-xs bg-muted px-2 py-1 rounded block break-all">
+                      {selectedForDetails.id}
+                    </code>
+                  </div>
                 </div>
-              </div>
-            )}
-          </ScrollArea>
+              )}
+            </ScrollArea>
           </div>
-       
         </DialogContent>
       </Dialog>
- 
     </>
-  )
-
-
-
+  );
 }

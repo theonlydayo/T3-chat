@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { type ReactNode } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,30 +6,43 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from '@/components/ui/button'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
+type ModalProps = {
+  children: ReactNode;
+  title: string;
+  description?: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit?: () => void | Promise<void>;
+  submitText?: string;
+  cancelText?: string;
+  showFooter?: boolean;
+  submitVariant?: string;
+  size: string;
+  className?: string;
+};
 
-
-const Modal= ({
+const Modal = ({
   children,
   title,
   description,
   isOpen,
   onClose,
   onSubmit,
-  submitText = 'Submit',
-  cancelText = 'Cancel',
+  submitText = "Submit",
+  cancelText = "Cancel",
   showFooter = true,
   submitVariant = "default",
   size,
-  className = ''
-}) => {
+  className = "",
+}: ModalProps) => {
   const handleSubmit = () => {
     if (onSubmit) {
-      onSubmit()
+      onSubmit();
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -37,27 +50,21 @@ const Modal= ({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && (
-            <DialogDescription>
-              {description}
-            </DialogDescription>
+            <DialogDescription>{description}</DialogDescription>
           )}
         </DialogHeader>
-        
-        <div className="py-4">
-          {children}
-        </div>
+
+        <div className="py-4">{children}</div>
 
         {showFooter && (
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={onClose}
-            >
+            <Button variant="outline" onClick={onClose}>
               {cancelText}
             </Button>
+
             {onSubmit && (
               <Button
-                className='bg-primary text-primary-foreground hover:bg-primary/90'
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={handleSubmit}
               >
                 {submitText}
@@ -67,7 +74,7 @@ const Modal= ({
         )}
       </DialogContent>
     </Dialog>
-  )
-}
+  );
+};
 
-export default Modal
+export default Modal;

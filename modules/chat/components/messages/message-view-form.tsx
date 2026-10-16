@@ -3,7 +3,13 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import React, { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useGetChatById } from "../../hooks/use-chats";
 import { useAIModels } from "../../hooks/use-ai-models";
 import { Spinner } from "@/components/ui/spinner";
@@ -17,6 +23,7 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+
 import {
   Conversation,
   ConversationContent,
@@ -26,18 +33,20 @@ import {
 } from "@/components/ai-elements/conversation";
 
 import { ModelSelector } from "../chat-view/model-selector";
+
 import {
   Message,
   MessageContent,
   MessageResponse,
 } from "@/components/ai-elements/message";
+
 import {
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
-import { toast } from "sonner";
 
+import { toast } from "sonner";
 
 type DBMessage = {
   id: string;
@@ -52,30 +61,47 @@ type MessagePartShape = {
   [key: string]: unknown;
 };
 
+function parseMessageToUI(msg: DBMessage): UIMessage {
+  const basePart: MessagePartShape = {
+    type: "text",
+    text: msg.content,
+  };
 
-function parseMessageToUI(msg) {
-  const basePart = { type: "text", text: msg.content };
+  let parts: MessagePartShape[];
 
   try {
-    const parts = JSON.parse(msg.content);
-    return {
-      id: msg.id,
-      role: msg.messageRole.toLowerCase(),
-      parts: Array.isArray(parts) ? parts : [basePart],
-      createdAt: msg.createdAt,
-    };
+    const parsed: unknown = JSON.parse(msg.content);
+
+    parts =
+      Array.isArray(parsed) &&
+      parsed.every(
+        (part): part is MessagePartShape =>
+          typeof part === "object" &&
+          part !== null &&
+          "type" in part &&
+          typeof part.type === "string",
+      )
+        ? parsed
+        : [basePart];
   } catch {
-    return {
-      id: msg.id,
-      role: msg.messageRole.toLowerCase(),
-      parts: [basePart],
-      createdAt: msg.createdAt,
-    };
+    parts = [basePart];
   }
+
+  return {
+    id: msg.id,
+    role: msg.messageRole.toLowerCase() as "user" | "assistant",
+    parts: parts as UIMessage["parts"],
+  };
 }
 
-function MessagePart({ part, messageId, partIndex, role , isStreaming }:{
-   part: MessagePartShape;
+function MessagePart({
+  part,
+  messageId,
+  partIndex,
+  role,
+  isStreaming,
+}: {
+  part: MessagePartShape;
   messageId: string;
   partIndex: number;
   role: UIMessage["role"];
@@ -87,7 +113,7 @@ function MessagePart({ part, messageId, partIndex, role , isStreaming }:{
     return (
       <Message from={role} key={key}>
         <MessageContent>
-          <MessageResponse>{part.text}</MessageResponse>
+          <MessageResponse>{part.text ?? ""}</MessageResponse>
         </MessageContent>
       </Message>
     );
@@ -119,58 +145,65 @@ function MessagePart({ part, messageId, partIndex, role , isStreaming }:{
   return null;
 }
 
-export const MessageViewWithForm = ({ chatId }: {chatId:string}) => {
- const {data:chatData , isPending} = useGetChatById(chatId);
+export const MessageViewWithForm = ({
+  chatId,
+}: {
+  chatId: string;
+}) => {
+  const { data: chatData, isPending } = useGetChatById(chatId);
 
- console.log(chatData)
+  if (isPending) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Spinner />
+      </div>
+    );
+  }
 
- if(isPending){
+  if (!chatData?.success || !chatData?.data) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        Chat Not Found
+      </div>
+    );
+  }
+
+  const rawMessages: DBMessage[] = chatData.data.messages ?? [];
+
+  const initialMessages: UIMessage[] = rawMessages
+    .filter((message) => message?.id && message?.content?.trim())
+    .map(parseMessageToUI);
+
   return (
-    <div className="flex items-center justify-center h-full">
-      <Spinner/>
-    </div>
-  )
- }
-
- if(!chatData?.success || !chatData?.data){
-  return (
-    <div className="flex items-center justify-center h-full text-muted-foreground">
-      Chat Not Found
-    </div>
-  )
- }
-
- const rawMessages = (chatData.data.messages ?? [])
- const initialMessages:UIMessage[] = rawMessages.filter((m)=>m?.id && m?.content?.trim())
- .map(parseMessageToUI);
-
- return (
-  <ChatView
-  chatId={chatId}
-  initialMessages={initialMessages}
-  initialModel={chatData.data.model}
-  />
- )
+    <ChatView
+      chatId={chatId}
+      initialMessages={initialMessages}
+      initialModel={chatData.data.model}
+    />
+  );
 };
 
 const ChatView = ({
   chatId,
   initialMessages,
   initialModel,
-}:{
-   chatId: string;
+}: {
+  chatId: string;
   initialMessages: UIMessage[];
   initialModel: string | null;
-})=>{
+}) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const shouldAutoTrigger = searchParams.get("autoTrigger") === "true";
   const hasAutoTriggered = useRef(false);
 
-  const [selectedModel , setSelectedModel] = useState<string | null>(initialModel);
-   const { data: modelsData, isPending: isModelLoading } = useAIModels();
+  const [selectedModel, setSelectedModel] = useState<string | null>(
+    initialModel,
+  );
 
-   const transport = useMemo(
+  const { data: modelsData, isPending: isModelLoading } = useAIModels();
+
+  const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
@@ -183,16 +216,14 @@ const ChatView = ({
     messages: initialMessages,
     transport,
     onError: (err) => {
-      console.log("Chat error", err);
+      console.error("Chat error:", err);
       toast.error(err.message);
     },
   });
 
-  
-  const isBuzy = status === "submitted" || status === "streaming";
+  const isBusy = status === "submitted" || status === "streaming";
 
-
-    useEffect(() => {
+  useEffect(() => {
     if (!shouldAutoTrigger) return;
     if (hasAutoTriggered.current) return;
     if (!selectedModel) return;
@@ -207,14 +238,16 @@ const ChatView = ({
         model: selectedModel,
         skipUserMessage: true,
       },
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       console.error("Auto-trigger failed:", err);
       toast.error("Failed to generate response");
     });
 
     const params = new URLSearchParams(searchParams.toString());
     params.delete("autoTrigger");
+
     const query = params.toString();
+
     router.replace(`/chat/${chatId}${query ? `?${query}` : ""}`, {
       scroll: false,
     });
@@ -228,36 +261,37 @@ const ChatView = ({
     searchParams,
   ]);
 
-
-  const handleSubmit = async(message:PromptInputMessage)=>{
+  const handleSubmit = async (message: PromptInputMessage) => {
     const text = message.text?.trim();
-    if(!text) return;
-    if(!selectedModel){
-      toast.error("Please select a model first")
+
+    if (!text) return;
+
+    if (!selectedModel) {
+      toast.error("Please select a model first");
+      return;
     }
 
-    if(isBuzy) return;
+    if (isBusy) return;
 
     try {
       await sendMessage(
-        {text},
+        { text },
         {
-          body:{
+          body: {
             chatId,
-            model:selectedModel,
-            skipUserMessage:false
-          }
-        }
-      )
-    } catch (error) {
-        console.error("Send message failed:", err);
+            model: selectedModel,
+            skipUserMessage: false,
+          },
+        },
+      );
+    } catch (error: unknown) {
+      console.error("Send message failed:", error);
       toast.error("Failed to send message");
     }
-  }
-
+  };
 
   return (
-     <div className="max-w-4xl mx-auto p-6 relative size-full h-[calc(100vh-4rem)]">
+    <div className="max-w-4xl mx-auto p-6 relative size-full h-[calc(100vh-4rem)]">
       <div className="flex flex-col h-full">
         <Conversation className="h-full">
           <ConversationContent>
@@ -269,17 +303,17 @@ const ChatView = ({
             ) : (
               messages.map((message) => (
                 <Fragment key={message.id}>
-                  {message.parts.map((part, i) => (
+                  {message.parts.map((part, index) => (
                     <MessagePart
-                      key={`${message.id}-${i}`}
+                      key={`${message.id}-${index}`}
                       part={part as MessagePartShape}
                       messageId={message.id}
-                      partIndex={i}
+                      partIndex={index}
                       role={message.role}
                       isStreaming={
-                        isBuzy &&
+                        isBusy &&
                         message === messages.at(-1) &&
-                        i === message.parts.length - 1
+                        index === message.parts.length - 1
                       }
                     />
                   ))}
@@ -300,6 +334,7 @@ const ChatView = ({
               </div>
             )}
           </ConversationContent>
+
           <ConversationScrollButton />
         </Conversation>
 
@@ -307,7 +342,7 @@ const ChatView = ({
           <PromptInputBody>
             <PromptInputTextarea
               placeholder="Type your message..."
-              disabled={isBuzy}
+              disabled={isBusy}
             />
           </PromptInputBody>
 
@@ -319,17 +354,18 @@ const ChatView = ({
                 ) : (
                   <ModelSelector
                     models={modelsData?.models ?? []}
-                    selectedModelId={selectedModel}
+                    selectedModelId={selectedModel ?? undefined}
                     onModelSelect={setSelectedModel}
                     className=""
                   />
                 )}
               </div>
+
               <PromptInputSubmit status={status} onStop={stop} />
             </PromptInputTools>
           </PromptInputFooter>
         </PromptInput>
       </div>
     </div>
-  )
-}
+  );
+};
